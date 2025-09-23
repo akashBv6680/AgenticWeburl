@@ -244,3 +244,55 @@ with st.container():
                     file_contents = response.text
                     documents = split_documents(file_contents)
                     process_and_store_documents(documents)
+                    st.success("File from URL processed! You can now chat about its contents.")
+                except requests.exceptions.RequestException as e:
+                    st.error(f"Error fetching URL: {e}")
+                except Exception as e:
+                    st.error(f"An unexpected error occurred: {e}")
+    
+    if website_url:
+        if st.button("Process Website URL"):
+            with st.spinner("Fetching and processing website content..."):
+                try:
+                    # Use WebBaseLoader to load and parse the website content
+                    loader = WebBaseLoader(website_url)
+                    docs = loader.load()
+                    
+                    if not docs:
+                        st.warning("No content found at the provided URL.")
+                    else:
+                        full_text = " ".join([d.page_content for d in docs])
+                        documents = split_documents(full_text)
+                        process_and_store_documents(documents)
+                        st.success("Website content processed! You can now chat about its content.")
+
+                except Exception as e:
+                    st.error(f"Error processing website URL: {e}")
+
+# Sidebar
+with st.sidebar:
+    st.header("Agentic RAG Chat Flow")
+    if st.button("New Chat"):
+        st.session_state.messages = []
+        clear_chroma_data()
+        st.session_state.chat_history = {}
+        st.session_state.current_chat_id = None
+        st.experimental_rerun()
+
+    st.subheader("Chat History")
+    if 'chat_history' in st.session_state and st.session_state.chat_history:
+        sorted_chat_ids = sorted(
+            st.session_state.chat_history.keys(), 
+            key=lambda x: st.session_state.chat_history[x]['date'], 
+            reverse=True
+        )
+        for chat_id in sorted_chat_ids:
+            chat_title = st.session_state.chat_history[chat_id]['title']
+            date_str = st.session_state.chat_history[chat_id]['date'].strftime("%b %d, %I:%M %p")
+            if st.button(f"**{chat_title}** - {date_str}", key=chat_id):
+                st.session_state.current_chat_id = chat_id
+                st.session_state.messages = st.session_state.chat_history[chat_id]['messages']
+                st.experimental_rerun()
+
+display_chat_messages()
+handle_user_input()
