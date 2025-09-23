@@ -130,9 +130,8 @@ def create_agent():
     
     # Custom prompt to give the agent a better sense of when to use each tool
     custom_prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a helpful assistant with access to specialized tools. You should use the provided tools to answer the user's questions. Follow the ReAct framework to reason and act. Your primary goal is to provide accurate answers. If a question can be answered by the documents, prioritize the 'retrieve_documents' tool. If it's a general knowledge question or about current events, use 'duckduckgo_search'. For math problems, use the 'calculator'. Your final answer should be concise and direct."),
+        ("system", "You are a helpful assistant with access to specialized tools. You should use the provided tools to answer the user's questions. Follow the ReAct framework to reason and act. Your primary goal is to provide accurate answers. If a question can be answered by the documents, prioritize the 'retrieve_documents' tool. If it's a general knowledge question or about current events, use 'duckduckgo_search'. For math problems, use the 'calculator'. Your final answer should be concise and direct.\n\nHere are the tools you have access to:\n{tools}\n\nUse the following format to interact with the tools:\nThought: you should always think about what to do\nAction: the action to take, should be one of [{tool_names}]\nAction Input: the input to the action\nObservation: the result of the action\n...(this Thought/Action/Observation loop can repeat N times)\nThought: I now know the final answer\nFinal Answer: the final answer to the original input question\n\nBegin!\n\n{agent_scratchpad}"),
         ("human", "{input}"),
-        ("ai", "Thought:"),
     ])
     
     tools = [
@@ -214,7 +213,7 @@ def handle_user_input():
                     final_response = f"An error occurred: {e}"
                 st.markdown(final_response)
 
-        st.session_state.messages.append({"role": "assistant", "content": final_response})
+        st.session_session.messages.append({"role": "assistant", "content": final_response})
 
 # --- Main UI ---
 st.title("Agentic RAG Chat Flow")
@@ -245,55 +244,3 @@ with st.container():
                     file_contents = response.text
                     documents = split_documents(file_contents)
                     process_and_store_documents(documents)
-                    st.success("File from URL processed! You can now chat about its contents.")
-                except requests.exceptions.RequestException as e:
-                    st.error(f"Error fetching URL: {e}")
-                except Exception as e:
-                    st.error(f"An unexpected error occurred: {e}")
-    
-    if website_url:
-        if st.button("Process Website URL"):
-            with st.spinner("Fetching and processing website content..."):
-                try:
-                    # Use WebBaseLoader to load and parse the website content
-                    loader = WebBaseLoader(website_url)
-                    docs = loader.load()
-                    
-                    if not docs:
-                        st.warning("No content found at the provided URL.")
-                    else:
-                        full_text = " ".join([d.page_content for d in docs])
-                        documents = split_documents(full_text)
-                        process_and_store_documents(documents)
-                        st.success("Website content processed! You can now chat about its content.")
-
-                except Exception as e:
-                    st.error(f"Error processing website URL: {e}")
-
-# Sidebar
-with st.sidebar:
-    st.header("Agentic RAG Chat Flow")
-    if st.button("New Chat"):
-        st.session_state.messages = []
-        clear_chroma_data()
-        st.session_state.chat_history = {}
-        st.session_state.current_chat_id = None
-        st.experimental_rerun()
-
-    st.subheader("Chat History")
-    if 'chat_history' in st.session_state and st.session_state.chat_history:
-        sorted_chat_ids = sorted(
-            st.session_state.chat_history.keys(), 
-            key=lambda x: st.session_state.chat_history[x]['date'], 
-            reverse=True
-        )
-        for chat_id in sorted_chat_ids:
-            chat_title = st.session_state.chat_history[chat_id]['title']
-            date_str = st.session_state.chat_history[chat_id]['date'].strftime("%b %d, %I:%M %p")
-            if st.button(f"**{chat_title}** - {date_str}", key=chat_id):
-                st.session_state.current_chat_id = chat_id
-                st.session_state.messages = st.session_state.chat_history[chat_id]['messages']
-                st.experimental_rerun()
-
-display_chat_messages()
-handle_user_input()
