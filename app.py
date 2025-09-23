@@ -212,8 +212,9 @@ def handle_user_input():
                 except Exception as e:
                     final_response = f"An error occurred: {e}"
                 st.markdown(final_response)
-
-        st.session_session.messages.append({"role": "assistant", "content": final_response})
+                
+        # Fix the AttributeError by correcting the typo
+        st.session_state.messages.append({"role": "assistant", "content": final_response})
 
 # --- Main UI ---
 st.title("Agentic RAG Chat Flow")
