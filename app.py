@@ -1,19 +1,5 @@
-import streamlit as st
-import os
+# The sqlite3 fix must be at the very top, before any other imports
 import sys
-import tempfile
-import uuid
-import json
-import requests
-import time
-from datetime import datetime
-import re
-from typing import List
-
-# --- Set Page Config (Must be the very first Streamlit command) ---
-st.set_page_config(layout="wide")
-
-# This block MUST be at the very top to fix the sqlite3 version issue.
 try:
     __import__('pysqlite3')
     sys.modules['sqlite3'] = sys.modules['pysqlite3']
@@ -22,6 +8,18 @@ except ImportError:
     st.stop()
 
 # Now import other libraries
+import streamlit as st
+import os
+import tempfile
+import uuid
+import json
+import requests
+import time
+from datetime import datetime
+import re
+from typing import List
+import fitz # Import the PyMuPDF library for PDF processing
+
 import chromadb
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import SentenceTransformerEmbeddings
@@ -37,6 +35,9 @@ from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_community.document_loaders import WebBaseLoader
 from bs4 import BeautifulSoup
 
+
+# --- Set Page Config (Must be the very first Streamlit command) ---
+st.set_page_config(layout="wide")
 
 # --- Constants and Configuration ---
 COLLECTION_NAME = "agentic_rag_documents"
@@ -135,9 +136,9 @@ def create_agent():
     ])
     
     tools = [
-        retrieve_documents, 
-        calculator,         
-        duckduckgo_search   
+        retrieve_documents,
+        calculator,
+        duckduckgo_search
     ]
     
     together_llm = Together(
@@ -197,7 +198,7 @@ def display_chat_messages():
 
 def handle_user_input():
     """Handles new user input, runs the RAG pipeline, and updates chat history."""
-    if prompt := st.chat_input("Ask about your document..."):
+    if prompt := st.chat_input("Ask about your documents..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         
         with st.chat_message("user"):
@@ -223,18 +224,34 @@ st.markdown("---")
 # Document upload/processing section
 with st.container():
     st.subheader("Add Context Documents")
-    uploaded_files = st.file_uploader("Upload text files (.txt)", type="txt", accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload text (.txt) or PDF files (.pdf)", type=["txt", "pdf"], accept_multiple_files=True)
     github_url = st.text_input("Enter a GitHub raw `.txt` or `.md` URL:")
     website_url = st.text_input("Enter a Website URL:")
-
+    
     if uploaded_files:
         if st.button("Process Files"):
             with st.spinner("Processing files..."):
+                all_text = ""
                 for uploaded_file in uploaded_files:
-                    file_contents = uploaded_file.read().decode("utf-8")
-                    documents = split_documents(file_contents)
+                    if uploaded_file.type == "text/plain":
+                        file_contents = uploaded_file.read().decode("utf-8")
+                        all_text += file_contents + "\n" # Add a newline to separate content from different files
+                    elif uploaded_file.type == "application/pdf":
+                        try:
+                            # Use PyMuPDF (fitz) to open the PDF in memory
+                            doc = fitz.open(stream=uploaded_file.getvalue(), filetype="pdf")
+                            for page in doc:
+                                all_text += page.get_text()
+                            doc.close()
+                        except Exception as e:
+                            st.error(f"Error processing PDF file: {uploaded_file.name}. Error: {e}")
+                            
+                if all_text:
+                    documents = split_documents(all_text)
                     process_and_store_documents(documents)
-                st.success("All files processed and stored successfully! You can now ask questions about their content.")
+                    st.success("All files processed and stored successfully! You can now ask questions about their content.")
+                else:
+                    st.warning("No text could be extracted from the uploaded files.")
 
     if github_url and is_valid_github_raw_url(github_url):
         if st.button("Process GitHub URL"):
@@ -283,8 +300,8 @@ with st.sidebar:
     st.subheader("Chat History")
     if 'chat_history' in st.session_state and st.session_state.chat_history:
         sorted_chat_ids = sorted(
-            st.session_state.chat_history.keys(), 
-            key=lambda x: st.session_state.chat_history[x]['date'], 
+            st.session_state.chat_history.keys(),
+            key=lambda x: st.session_state.chat_history[x]['date'],
             reverse=True
         )
         for chat_id in sorted_chat_ids:
